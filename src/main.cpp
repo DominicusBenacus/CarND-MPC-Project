@@ -3,13 +3,14 @@
 #include "MPC.h"
 #include "json.hpp"
 #include <chrono>
+#include <cppad/cppad.hpp>
+#include <cppad/ipopt/solve.hpp>
 #include <iostream>
 #include <math.h>
 #include <thread>
 #include <uWS/uWS.h>
 #include <vector>
-#include <cppad/cppad.hpp>
-#include <cppad/ipopt/solve.hpp>
+
 
 // for convenience
 using json = nlohmann::json;
@@ -94,7 +95,6 @@ int main() {
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
 
-          
           double steer_value;
           double throttle_value;
 
@@ -102,23 +102,42 @@ int main() {
           Eigen::VectorXd ptsxVec(ptsx.size());
           Eigen::VectorXd ptsyVec(ptsy.size());
           // Convert each element of x and y point vector
-          // into the car's perspective          
+          // into the car's perspective
           for (int i = 0; i < ptsx.size(); i++) {
             ptsxVec[i] = (ptsx[i] - px) * cos(psi) + (ptsy[i] - py) * sin(psi);
             ptsyVec[i] = -(ptsx[i] - px) * sin(psi) + (ptsy[i] - py) * cos(psi);
           }
           /*
-          * TODO: Calculate steering angle and throttle using MPC.
-          *
-          * Both are in between [-1, 1].
-          *
+          * TODO: Calculate steering angle and throttle using MPC.          *
+          * Both are in between [-1, 1].          *
           */
+          // prepare the state vector of variables x,y,psi,v,cte and epsi
+          // it is of type "DVector vars" for initializing the model
+          // the state vector is one argument for the MPC::Solve method 
+          Eigen::VectorXd state(6);          
+          // define the 3rd order polynomial coefficients for given waypoints
+          // way points are generated of the simulation track geometry data (middle of lane borders)
+          auto coeffs = polyfit(ptsxVec, ptsyVec, 3);          
+          // Calculate the current cross track and orientation error
+          double cte = polyeval(coeffs, 0.);
+          double epsi = atan(coeffs[1]);
+          // Fill up the initital state vector with the calculated values
+          state << 0, 0, 0, v, cte, epsi;
+          // Call Solve method - First the Solve method set up the 
+          // model vars and contrains. It also define the upper and lower bounds
+          // Further it iterates over all num of time steps N for calculating the 
+          // cost function and the predicted model states
+          // @return the optimized steering angle and throttle           
+          auto vars = mpc.Solve(state, coeffs);                   
+          steer_value = vars[0];
+          throttle_value = vars[1];
+          
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the
           // steering value back.
           // Otherwise the values will be in between [-deg2rad(25), deg2rad(25]
           // instead of [-1, 1].
-          msgJson["steering_angle"] = steer_value;
+          msgJson["steering_angle"] = steer_value / (deg2rad(25));
           msgJson["throttle"] = throttle_value;
 
           // Display the MPC predicted trajectory
@@ -126,7 +145,7 @@ int main() {
           vector<double> mpc_y_vals;
 
           //.. add (x,y) points to list here, points are in reference to the
-          //vehicle's coordinate system
+          // vehicle's coordinate system
           // the points in the simulator are connected by a Green line
 
           msgJson["mpc_x"] = mpc_x_vals;
@@ -137,7 +156,7 @@ int main() {
           vector<double> next_y_vals;
 
           //.. add (x,y) points to list here, points are in reference to the
-          //vehicle's coordinate system
+          // vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
 
           msgJson["next_x"] = next_x_vals;
