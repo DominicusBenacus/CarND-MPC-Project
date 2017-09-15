@@ -55,16 +55,16 @@ public:
     fg[0] = 0;
 
     // The part of the cost based on the reference state.
-    for (int i = 0; i < N; i++) {
+    for (uint64_t i = 0; i < N; i++) {
       fg[0] += CppAD::pow(vars[cte_start + i], 2);
       fg[0] += CppAD::pow(vars[epsi_start + i], 2);
       fg[0] += CppAD::pow(vars[v_start + i] - ref_v, 2);
     }
-    for (int i = 0; i < N - 1; i++) {
+    for (uint64_t i = 0; i < N - 1; i++) {
       fg[0] += CppAD::pow(vars[delta_start + i], 2);
       fg[0] += CppAD::pow(vars[a_start + i], 2);
     }
-    for (int i = 0; i < N - 2; i++) {
+    for (uint64_t i = 0; i < N - 2; i++) {
       fg[0] += CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2);
       fg[0] += CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2);
     }
@@ -79,7 +79,7 @@ public:
     fg[1 + epsi_start] = vars[epsi_start];
 
     // The rest of constraints
-    for (int i = 0; i < N - 1; ++i) {
+    for (uint64_t i = 0; i < N - 1; ++i) {
       // State at time (t+1)
       AD<double> x1 = vars[x_start + i + 1];
       AD<double> y1 = vars[y_start + i + 1];
@@ -123,7 +123,7 @@ MPC::~MPC() {}
 
 vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   bool ok = true;
-  size_t i;
+  
   typedef CPPAD_TESTVECTOR(double) Dvector;
   
   double x      = state[0];
@@ -137,13 +137,13 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   // For example: If the state is a 4 element vector, the actuators is a 2
   // element vector and there are 10 timesteps. The number of variables is:
   // 4 * 10 + 2 * 9
-  size_t n_vars = 6 * N + 2 * (N - 1);;
+  size_t n_vars = 6 * N + 2 * (N - 1);
   // TODO: Set the number of constraints
   size_t n_constraints = 6*N;
   // Initial value of the independent variables.
   // SHOULD BE 0 besides initial state.
   Dvector vars(n_vars);
-  for (int i = 0; i < n_vars; i++) {
+  for (uint64_t i = 0; i < n_vars; i++) {
     vars[i] = 0;
   }
 
@@ -160,7 +160,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
 
   // Set all kinematic model states (6) upper and lowerlimits
   // max negative and positive value of type c++ double
-  for (int i = 0; i < delta_start; i++) {
+  for (uint64_t i = 0; i < delta_start; i++) {
     //vars_lowerbound[i] = -1.0e19;
     //vars_upperbound[i] = 1.0e19;    
     vars_lowerbound[i] = std::numeric_limits<double>::min();
@@ -169,12 +169,12 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   // Set upper and lower limits steering angle delta
   // are set to -25 and 25 degrees --> values are coded in radiants
   // This is a common vehicle contrain
-  for (int i = delta_start; i < a_start; i++) {
+  for (uint64_t i = delta_start; i < a_start; i++) {
     vars_lowerbound[i] = -0.436332;
     vars_upperbound[i] = 0.436332;
   }
   // Set upper and lower limitsof vehcile control acceleration
-  for (int i = a_start; i < n_vars; i++) {
+  for (uint64_t i = a_start; i < n_vars; i++) {
     vars_lowerbound[i] = -1.0;
     vars_upperbound[i] = 1.0;
   }
@@ -183,7 +183,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   // Should be 0 besides initial state.
   Dvector constraints_lowerbound(n_constraints);
   Dvector constraints_upperbound(n_constraints);
-  for (int i = 0; i < n_constraints; i++) {
+  for (uint64_t i = 0; i < n_constraints; i++) {
     constraints_lowerbound[i] = 0;
     constraints_upperbound[i] = 0;
   }
@@ -243,5 +243,14 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   //
   // {...} is shorthand for creating a vector, so auto x1 = {1.0,2.0}
   // creates a 2 element double vector.
-  return {};
+  vector<double> result;
+  
+  result.push_back(solution.x[delta_start]);
+  result.push_back(solution.x[a_start]);
+  
+  for (uint64_t i = 0; i < N - 1; i++) {
+    result.push_back(solution.x[x_start + i + 1]);
+    result.push_back(solution.x[y_start + i + 1]);
+  }
+  return result;
 }
