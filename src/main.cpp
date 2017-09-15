@@ -94,15 +94,25 @@ int main() {
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
 
+          
+          double steer_value;
+          double throttle_value;
+
+          // prepare cetor for transform waypoints into car's coordinate system
+          Eigen::VectorXd ptsxVec(ptsx.size());
+          Eigen::VectorXd ptsyVec(ptsy.size());
+          // Convert each element of x and y point vector
+          // into the car's perspective          
+          for (int i = 0; i < ptsx.size(); i++) {
+            ptsxVec[i] = (ptsx[i] - px) * cos(psi) + (ptsy[i] - py) * sin(psi);
+            ptsyVec[i] = -(ptsx[i] - px) * sin(psi) + (ptsy[i] - py) * cos(psi);
+          }
           /*
           * TODO: Calculate steering angle and throttle using MPC.
           *
           * Both are in between [-1, 1].
           *
           */
-          double steer_value;
-          double throttle_value;
-
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the
           // steering value back.
