@@ -2,6 +2,9 @@
 #include "Eigen-3.3/Eigen/Core"
 #include <cppad/cppad.hpp>
 #include <cppad/ipopt/solve.hpp>
+#include <limits>
+#include <cstddef>
+#include <iostream>
 
 
 using CppAD::AD;
@@ -155,6 +158,27 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   Dvector vars_upperbound(n_vars);
   // TODO: Set lower and upper limits for variables.
 
+  // Set all kinematic model states (6) upper and lowerlimits
+  // max negative and positive value of type c++ double
+  for (int i = 0; i < delta_start; i++) {
+    //vars_lowerbound[i] = -1.0e19;
+    //vars_upperbound[i] = 1.0e19;    
+    vars_lowerbound[i] = std::numeric_limits<double>::min();
+    vars_upperbound[i] = std::numeric_limits<double>::max();
+  }
+  // Set upper and lower limits steering angle delta
+  // are set to -25 and 25 degrees --> values are coded in radiants
+  // This is a common vehicle contrain
+  for (int i = delta_start; i < a_start; i++) {
+    vars_lowerbound[i] = -0.436332;
+    vars_upperbound[i] = 0.436332;
+  }
+  // Set upper and lower limitsof vehcile control acceleration
+  for (int i = a_start; i < n_vars; i++) {
+    vars_lowerbound[i] = -1.0;
+    vars_upperbound[i] = 1.0;
+  }
+
   // Lower and upper limits for the constraints
   // Should be 0 besides initial state.
   Dvector constraints_lowerbound(n_constraints);
@@ -163,7 +187,21 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
     constraints_lowerbound[i] = 0;
     constraints_upperbound[i] = 0;
   }
-
+  // UPPER BOUND
+  constraints_lowerbound[x_start] = x;
+  constraints_lowerbound[y_start] = y;
+  constraints_lowerbound[psi_start] = psi;
+  constraints_lowerbound[v_start] = v;
+  constraints_lowerbound[cte_start] = cte;
+  constraints_lowerbound[epsi_start] = epsi;
+  
+  // LOWER BOUND
+  constraints_upperbound[x_start] = x;
+  constraints_upperbound[y_start] = y;
+  constraints_upperbound[psi_start] = psi;
+  constraints_upperbound[v_start] = v;
+  constraints_upperbound[cte_start] = cte;
+  constraints_upperbound[epsi_start] = epsi;
   // object that computes objective and constraints
   FG_eval fg_eval(coeffs);
 
