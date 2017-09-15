@@ -11,7 +11,6 @@
 #include <uWS/uWS.h>
 #include <vector>
 
-
 // for convenience
 using json = nlohmann::json;
 
@@ -113,25 +112,27 @@ int main() {
           */
           // prepare the state vector of variables x,y,psi,v,cte and epsi
           // it is of type "DVector vars" for initializing the model
-          // the state vector is one argument for the MPC::Solve method 
-          Eigen::VectorXd state(6);          
+          // the state vector is one argument for the MPC::Solve method
+          Eigen::VectorXd state(6);
           // define the 3rd order polynomial coefficients for given waypoints
-          // way points are generated of the simulation track geometry data (middle of lane borders)
-          auto coeffs = polyfit(ptsxVec, ptsyVec, 3);          
+          // way points are generated of the simulation track geometry data
+          // (middle of lane borders)
+          auto coeffs = polyfit(ptsxVec, ptsyVec, 3);
           // Calculate the current cross track and orientation error
           double cte = polyeval(coeffs, 0.);
           double epsi = atan(coeffs[1]);
           // Fill up the initital state vector with the calculated values
           state << 0, 0, 0, v, cte, epsi;
-          // Call Solve method - First the Solve method set up the 
+          // Call Solve method - First the Solve method set up the
           // model vars and contrains. It also define the upper and lower bounds
-          // Further it iterates over all num of time steps N for calculating the 
+          // Further it iterates over all num of time steps N for calculating
+          // the
           // cost function and the predicted model states
-          // @return the optimized steering angle and throttle           
-          auto vars = mpc.Solve(state, coeffs);                   
+          // @return the optimized steering angle and throttle
+          auto vars = mpc.Solve(state, coeffs);
           steer_value = vars[0];
           throttle_value = vars[1];
-          
+
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the
           // steering value back.
@@ -143,10 +144,16 @@ int main() {
           // Display the MPC predicted trajectory
           vector<double> mpc_x_vals;
           vector<double> mpc_y_vals;
-
           //.. add (x,y) points to list here, points are in reference to the
           // vehicle's coordinate system
           // the points in the simulator are connected by a Green line
+          for (int i = 2; i < vars.size(); i++) {
+            if (i % 2 == 0) {
+              mpc_x_vals.push_back(vars[i]);
+            } else {
+              mpc_y_vals.push_back(vars[i]);
+            }
+          }
 
           msgJson["mpc_x"] = mpc_x_vals;
           msgJson["mpc_y"] = mpc_y_vals;
@@ -158,6 +165,12 @@ int main() {
           //.. add (x,y) points to list here, points are in reference to the
           // vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
+          for (int i = 0; i < ptsxVec.size(); i++){
+            //next_x_vals.push_back(i);
+            //next_y_vals.push_back(polyeval(coeffs, i));
+            next_x_vals.push_back(ptsxVec[i]);
+            next_y_vals.push_back(-ptsyVec[i]);
+          }
 
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
