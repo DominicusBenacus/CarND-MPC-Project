@@ -1,7 +1,8 @@
 #include "MPC.h"
+#include "Eigen-3.3/Eigen/Core"
 #include <cppad/cppad.hpp>
 #include <cppad/ipopt/solve.hpp>
-#include "Eigen-3.3/Eigen/Core"
+
 
 using CppAD::AD;
 
@@ -22,31 +23,92 @@ double dt = 0.1;
 const double Lf = 2.67;
 
 // Inizialize the model variables
-double ref_cte  = 0;
+double ref_cte = 0;
 double ref_epsi = 0;
-double ref_v    = 60;
+double ref_v = 60;
 
-size_t x_start      = 0;
-size_t y_start      = x_start + N;
-size_t psi_start    = y_start + N;
-size_t v_start      = psi_start + N;
-size_t cte_start    = v_start + N;
-size_t epsi_start   = cte_start + N;
-size_t delta_start  = epsi_start + N;
-size_t a_start      = delta_start + N - 1;
+size_t x_start = 0;
+size_t y_start = x_start + N;
+size_t psi_start = y_start + N;
+size_t v_start = psi_start + N;
+size_t cte_start = v_start + N;
+size_t epsi_start = cte_start + N;
+size_t delta_start = epsi_start + N;
+size_t a_start = delta_start + N - 1;
 
 class FG_eval {
- public:
+public:
   // Fitted polynomial coefficients
   Eigen::VectorXd coeffs;
   FG_eval(Eigen::VectorXd coeffs) { this->coeffs = coeffs; }
 
   typedef CPPAD_TESTVECTOR(AD<double>) ADvector;
-  void operator()(ADvector& fg, const ADvector& vars) {
+  void operator()(ADvector &fg, const ADvector &vars) {
     // TODO: implement MPC
-    // `fg` a vector of the cost constraints, `vars` is a vector of variable values (state & actuators)
+    // `fg` a vector of the cost constraints, `vars` is a vector of variable
+    // values (state & actuators)
     // NOTE: You'll probably go back and forth between this function and
     // the Solver function below.
+    fg[0] = 0;
+
+    // The part of the cost based on the reference state.
+    for (int i = 0; i < N; i++) {
+      fg[0] += CppAD::pow(vars[cte_start + i], 2);
+      fg[0] += CppAD::pow(vars[epsi_start + i], 2);
+      fg[0] += CppAD::pow(vars[v_start + i] - ref_v, 2);
+    }
+    for (int i = 0; i < N - 1; i++) {
+      fg[0] += CppAD::pow(vars[delta_start + i], 2);
+      fg[0] += CppAD::pow(vars[a_start + i], 2);
+    }
+    for (int i = 0; i < N - 2; i++) {
+      fg[0] += CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2);
+      fg[0] += CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2);
+    }
+
+    // fg[1] is the storage for variables
+    // this declaration influence all other access steps
+    fg[1 + x_start] = vars[x_start];
+    fg[1 + y_start] = vars[y_start];
+    fg[1 + psi_start] = vars[psi_start];
+    fg[1 + v_start] = vars[v_start];
+    fg[1 + cte_start] = vars[cte_start];
+    fg[1 + epsi_start] = vars[epsi_start];
+
+    // The rest of constraints
+    for (int i = 0; i < N - 1; ++i) {
+      // State at time (t+1)
+      AD<double> x1 = vars[x_start + i + 1];
+      AD<double> y1 = vars[y_start + i + 1];
+      AD<double> psi1 = vars[psi_start + i + 1];
+      AD<double> v1 = vars[v_start + i + 1];
+      AD<double> cte1 = vars[cte_start + i + 1];
+      AD<double> epsi1 = vars[epsi_start + i + 1];
+
+      // State at time (t)
+      AD<double> x0 = vars[x_start + i];
+      AD<double> y0 = vars[y_start + i];
+      AD<double> psi0 = vars[psi_start + i];
+      AD<double> v0 = vars[v_start + i];
+      AD<double> cte0 = vars[cte_start + i];
+      AD<double> epsi0 = vars[epsi_start + i];
+
+      // Actuation at time t
+      AD<double> delta0 = vars[delta_start + i];
+      AD<double> a0 = vars[a_start + i];
+
+      AD<double> f0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * CppAD::pow(x0, 2) + coeffs[3] * CppAD::pow(x0, 3);
+      AD<double> psides0 = CppAD::atan(coeffs[1] + 2 * coeffs[2] * x0 + 3 * coeffs[3] * CppAD::pow(x0, 2));
+
+      fg[2 + x_start + i] = x1 - (x0 + v0 * CppAD::cos(psi0) * dt);
+      fg[2 + y_start + i] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt);
+      fg[2 + psi_start + i] = psi1 - (psi0 + v0 * delta0 / Lf * dt);
+      fg[2 + v_start + i] = v1 - (v0 + a0 * dt);
+      fg[2 + cte_start + i] =
+          cte1 - ((f0 - y0) + (v0 * CppAD::sin(epsi0) * dt));
+      fg[2 + epsi_start + i] =
+          epsi1 - ((psi0 - psides0) + v0 * delta0 / Lf * dt);
+    }
   }
 };
 
