@@ -67,6 +67,17 @@ Eigen::VectorXd polyfit(Eigen::VectorXd xvals, Eigen::VectorXd yvals,
   return result;
 }
 
+void transform_to_vehicle_coordinate(
+    vector<double> &ptsx, vector<double> &ptsy, Eigen::VectorXd &ptsxVec,
+    Eigen::VectorXd &ptsyVec, double &px, double &py, double &psi) {
+  // Convert each element of x and y point vector
+  // into the car's perspective
+  for (uint64_t i = 0; i < ptsx.size(); i++) {
+    ptsxVec[i] = (ptsx[i] - px) * cos(-psi) - (ptsy[i] - py) * sin(-psi);
+    ptsyVec[i] = (ptsx[i] - px) * sin(-psi) + (ptsy[i] - py) * cos(-psi);
+  }
+}
+
 int main() {
   uWS::Hub h;
 
@@ -79,7 +90,7 @@ int main() {
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
     string sdata = string(data).substr(0, length);
-    cout << sdata << endl;
+    // cout << sdata << endl;
     if (sdata.size() > 2 && sdata[0] == '4' && sdata[1] == '2') {
       string s = hasData(sdata);
       if (s != "") {
@@ -93,21 +104,18 @@ int main() {
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
-
-          double steer_value;
-          double throttle_value;
+          v*=0.447;
+          double steer_value ;
+          double throttle_value ;
 
           // prepare cetor for transform waypoints into car's coordinate system
           Eigen::VectorXd ptsxVec(ptsx.size());
           Eigen::VectorXd ptsyVec(ptsy.size());
-          // Convert each element of x and y point vector
-          // into the car's perspective
-          for (int i = 0; i < ptsx.size(); i++) {
-            ptsxVec[i] = (ptsx[i] - px) * cos(psi) + (ptsy[i] - py) * sin(psi);
-            ptsyVec[i] = -(ptsx[i] - px) * sin(psi) + (ptsy[i] - py) * cos(psi);
-          }
+          // Call for tranformation
+          transform_to_vehicle_coordinate(ptsx, ptsy, ptsxVec, ptsyVec, px, py,
+                                          psi);
           /*
-          * TODO: Calculate steering angle and throttle using MPC.          *
+          * TODO: Calculate steering angle and throttle using MPC. *
           * Both are in between [-1, 1].          *
           */
           // prepare the state vector of variables x,y,psi,v,cte and epsi
@@ -119,8 +127,8 @@ int main() {
           // (middle of lane borders)
           auto coeffs = polyfit(ptsxVec, ptsyVec, 3);
           // Calculate the current cross track and orientation error
-          double cte = polyeval(coeffs, 0.);
-          double epsi = atan(coeffs[1]);
+          double cte = polyeval(coeffs, 0);
+          double epsi = -atan(coeffs[1]);
           // Fill up the initital state vector with the calculated values
           state << 0, 0, 0, v, cte, epsi;
           // Call Solve method - First the Solve method set up the
@@ -130,6 +138,7 @@ int main() {
           // cost function and the predicted model states
           // @return the optimized steering angle and throttle
           auto vars = mpc.Solve(state, coeffs);
+
           steer_value = vars[0];
           throttle_value = vars[1];
 
@@ -138,7 +147,8 @@ int main() {
           // steering value back.
           // Otherwise the values will be in between [-deg2rad(25), deg2rad(25]
           // instead of [-1, 1].
-          msgJson["steering_angle"] = steer_value / (deg2rad(25));
+          // msgJson["steering_angle"] = -steer_value / (deg2rad(25));
+          msgJson["steering_angle"] = -steer_value / (deg2rad(25));
           msgJson["throttle"] = throttle_value;
 
           // Display the MPC predicted trajectory
@@ -147,7 +157,7 @@ int main() {
           //.. add (x,y) points to list here, points are in reference to the
           // vehicle's coordinate system
           // the points in the simulator are connected by a Green line
-          for (int i = 2; i < vars.size(); i++) {
+          for (uint64_t i = 2; i < vars.size(); i++) {
             if (i % 2 == 0) {
               mpc_x_vals.push_back(vars[i]);
             } else {
@@ -165,18 +175,20 @@ int main() {
           //.. add (x,y) points to list here, points are in reference to the
           // vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
-          for (int i = 0; i < ptsxVec.size(); i++){
-            //next_x_vals.push_back(i);
-            //next_y_vals.push_back(polyeval(coeffs, i));
-            next_x_vals.push_back(ptsxVec[i]);
-            next_y_vals.push_back(-ptsyVec[i]);
+          //for (int i = 0; i < ptsxVec.size(); i++) {
+            // try it in c11 style
+           for (double i = 0; i < 100; i+=3) {
+            next_x_vals.push_back(i);
+            next_y_vals.push_back(polyeval(coeffs, i));
+            //next_x_vals.push_back(ptsxVec[i]);
+            //next_y_vals.push_back(ptsyVec[i]);
           }
 
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
 
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
-          std::cout << msg << std::endl;
+          //std::cout << msg << std::endl;
           // Latency
           // The purpose is to mimic real driving conditions where
           // the car does actuate the commands instantly.
@@ -186,7 +198,7 @@ int main() {
           //
           // NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE
           // SUBMITTING.
-          this_thread::sleep_for(chrono::milliseconds(100));
+          this_thread::sleep_for(chrono::milliseconds(1));
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       } else {
