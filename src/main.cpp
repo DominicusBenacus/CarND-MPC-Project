@@ -70,17 +70,15 @@ Eigen::VectorXd polyfit(Eigen::VectorXd xvals, Eigen::VectorXd yvals,
 void transform_to_vehicle_coordinate(const vector<double> ptsx,
                                      const vector<double> ptsy,
                                      Eigen::VectorXd &ptsxVec,
-                                     Eigen::VectorXd &ptsyVec,
-                                     const double px,
-                                     const double py,
-                                     const double psi) {
+                                     Eigen::VectorXd &ptsyVec, const double px,
+                                     const double py, const double psi) {
   // Convert each element of x and y point vector
   // into the car's perspective
   for (uint64_t i = 0; i < ptsx.size(); i++) {
     double dx = ptsx[i] - px;
     double dy = ptsy[i] - py;
     ptsxVec[i] = dx * cos(-psi) - dy * sin(-psi);
-    ptsyVec[i] = dx * sin(-psi) + dy * cos(-psi);    
+    ptsyVec[i] = dx * sin(-psi) + dy * cos(-psi);
   }
 }
 
@@ -110,9 +108,18 @@ int main() {
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
-          v *= 0.44704; // convert from mph into m/s
-          double steer_value;
-          double throttle_value;
+          v *= 0.44704; // convert from mph into m/s        
+          
+          // Predict the car the time of expected latency into the future
+          // The estimated px,py represent the base to transform the waypoints
+          // into cars coordinate system and also the intial state for kinematic
+          // model the solver is using
+          double steer_value = j[1]["steering_angle"];
+          double throttle_value = j[1]["throttle"];
+          px += v * cos(psi) * 0.1;
+          py += v * sin(psi) * 0.1;
+          psi -= (v * steer_value * 0.1) / 2.67;
+          v += throttle_value * 0.1;
 
           // prepare cetor for transform waypoints into car's coordinate system
           Eigen::VectorXd ptsxVec(ptsx.size());
@@ -144,7 +151,6 @@ int main() {
           // cost function and the predicted model states
           // @return the optimized steering angle and throttle
           auto vars = mpc.Solve(state, coeffs);
-
           steer_value = vars[0];
           throttle_value = vars[1];
 
@@ -152,7 +158,7 @@ int main() {
           // NOTE: Remember to divide by deg2rad(25) before you send the
           // steering value back.
           // Otherwise the values will be in between [-deg2rad(25), deg2rad(25]
-          // instead of [-1, 1].          
+          // instead of [-1, 1].
           msgJson["steering_angle"] = -steer_value / (deg2rad(25));
           msgJson["throttle"] = throttle_value;
 
@@ -169,7 +175,6 @@ int main() {
               mpc_y_vals.push_back(vars[i]);
             }
           }
-
           msgJson["mpc_x"] = mpc_x_vals;
           msgJson["mpc_y"] = mpc_y_vals;
 
@@ -182,7 +187,7 @@ int main() {
           // the points in the simulator are connected by a Yellow line
           // for (int i = 0; i < ptsxVec.size(); i++) {
           // try it in c11 style
-          for (double i = 0; i < 100; i +=3) {
+          for (double i = 0; i < 100; i += 3) {
             next_x_vals.push_back(i);
             next_y_vals.push_back(polyeval(coeffs, i));
             // next_x_vals.push_back(ptsxVec[i]);
@@ -203,7 +208,7 @@ int main() {
           //
           // NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE
           // SUBMITTING.
-          this_thread::sleep_for(chrono::milliseconds(0));
+          this_thread::sleep_for(chrono::milliseconds(100));
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       } else {
