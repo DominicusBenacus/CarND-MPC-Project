@@ -67,14 +67,20 @@ Eigen::VectorXd polyfit(Eigen::VectorXd xvals, Eigen::VectorXd yvals,
   return result;
 }
 
-void transform_to_vehicle_coordinate(
-    vector<double> &ptsx, vector<double> &ptsy, Eigen::VectorXd &ptsxVec,
-    Eigen::VectorXd &ptsyVec, double &px, double &py, double &psi) {
+void transform_to_vehicle_coordinate(const vector<double> ptsx,
+                                     const vector<double> ptsy,
+                                     Eigen::VectorXd &ptsxVec,
+                                     Eigen::VectorXd &ptsyVec,
+                                     const double px,
+                                     const double py,
+                                     const double psi) {
   // Convert each element of x and y point vector
   // into the car's perspective
   for (uint64_t i = 0; i < ptsx.size(); i++) {
-    ptsxVec[i] = (ptsx[i] - px) * cos(-psi) - (ptsy[i] - py) * sin(-psi);
-    ptsyVec[i] = (ptsx[i] - px) * sin(-psi) + (ptsy[i] - py) * cos(-psi);
+    double dx = ptsx[i] - px;
+    double dy = ptsy[i] - py;
+    ptsxVec[i] = dx * cos(-psi) - dy * sin(-psi);
+    ptsyVec[i] = dx * sin(-psi) + dy * cos(-psi);    
   }
 }
 
@@ -104,9 +110,9 @@ int main() {
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
-          v *= 0.447; // convert from mph into m/s
-          double steer_value ;
-          double throttle_value ;
+          v *= 0.44704; // convert from mph into m/s
+          double steer_value;
+          double throttle_value;
 
           // prepare cetor for transform waypoints into car's coordinate system
           Eigen::VectorXd ptsxVec(ptsx.size());
@@ -146,8 +152,7 @@ int main() {
           // NOTE: Remember to divide by deg2rad(25) before you send the
           // steering value back.
           // Otherwise the values will be in between [-deg2rad(25), deg2rad(25]
-          // instead of [-1, 1].
-          // msgJson["steering_angle"] = -steer_value / (deg2rad(25));
+          // instead of [-1, 1].          
           msgJson["steering_angle"] = -steer_value / (deg2rad(25));
           msgJson["throttle"] = throttle_value;
 
@@ -175,20 +180,20 @@ int main() {
           //.. add (x,y) points to list here, points are in reference to the
           // vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
-          //for (int i = 0; i < ptsxVec.size(); i++) {
-            // try it in c11 style
-           for (double i = 0; i < 100; i+=3) {
+          // for (int i = 0; i < ptsxVec.size(); i++) {
+          // try it in c11 style
+          for (double i = 0; i < 100; i +=3) {
             next_x_vals.push_back(i);
             next_y_vals.push_back(polyeval(coeffs, i));
-            //next_x_vals.push_back(ptsxVec[i]);
-            //next_y_vals.push_back(ptsyVec[i]);
+            // next_x_vals.push_back(ptsxVec[i]);
+            // next_y_vals.push_back(ptsyVec[i]);
           }
 
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
 
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
-          //std::cout << msg << std::endl;
+          // std::cout << msg << std::endl;
           // Latency
           // The purpose is to mimic real driving conditions where
           // the car does actuate the commands instantly.
@@ -198,7 +203,7 @@ int main() {
           //
           // NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE
           // SUBMITTING.
-          this_thread::sleep_for(chrono::milliseconds(100));
+          this_thread::sleep_for(chrono::milliseconds(0));
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       } else {
