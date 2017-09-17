@@ -10,8 +10,8 @@
 using CppAD::AD;
 
 // TODO: Set the timestep length and duration
-size_t N = 7;
-double dt = 0.12;
+size_t N = 9;
+double dt = 0.10;
 
 // This value assumes the model presented in the classroom is used.
 //
@@ -26,7 +26,8 @@ double dt = 0.12;
 const double Lf = 2.67;
 
 // Inizialize the model variables
-double ref_v = 60;
+// the factor 0.447 convertsthe 60 mph into m/s
+double ref_v = 60*0.447; 
 
 size_t x_start = 0;
 size_t y_start = x_start + N;
@@ -126,12 +127,12 @@ public:
       AD<double> f0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * CppAD::pow(x0, 2) + coeffs[3] * CppAD::pow(x0, 3);
       AD<double> psides0 = CppAD::atan(coeffs[1] + 2 * coeffs[2] * x0 + 3 * coeffs[3] * CppAD::pow(x0, 2));
 
-      fg[1 + x_start + i] = x1 - (x0 + v0 * CppAD::cos(psi0) * dt);
-      fg[1 + y_start + i] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt);
-      fg[1 + psi_start + i] = psi1 - (psi0 + v0/Lf* delta * dt);
-      fg[1 + v_start + i] = v1 - (v0 + a * dt);
-      fg[1 + cte_start + i] = cte1 - ((f0 - y0) + (v0 * CppAD::sin(epsi0) * dt));
-      fg[1 + epsi_start + i] =  epsi1 - ((psi0 - psides0) + v0/Lf* delta * dt);
+      fg[2 + x_start + i] = x1 - (x0 + v0 * CppAD::cos(psi0) * dt);
+      fg[2 + y_start + i] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt);
+      fg[2 + psi_start + i] = psi1 - (psi0 + v0/Lf* delta * dt);
+      fg[2 + v_start + i] = v1 - (v0 + a * dt);
+      fg[2 + cte_start + i] = cte1 - ((f0 - y0) + (v0 * CppAD::sin(epsi0) * dt));
+      fg[2 + epsi_start + i] =  epsi1 - ((psi0 - psides0) + v0/Lf* delta * dt);
     }
   }
 };
